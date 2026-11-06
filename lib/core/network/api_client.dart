@@ -6,7 +6,8 @@ import 'transport.dart';
 
 /// JSON API client used by every remote data source.
 ///
-/// * GET requests are retried with exponential backoff.
+/// * GET requests are retried with exponential backoff (transient errors
+///   only).
 /// * POST requests are never retried automatically.
 ///
 /// FIX (QK-102): there used to be a 10-minute in-memory GET response cache
@@ -53,6 +54,9 @@ class ApiClient {
       try {
         return await _send(request);
       } on ApiException catch (e) {
+        // FIX (retry on 4xx): a 4xx (e.g. INVALID_CURSOR, QUERY_TOO_SHORT)
+        // will fail the same way again; retrying only made the user wait.
+        if (!e.isTransient) rethrow;
         lastError = e;
         if (attempt < maxRetries) {
           await Future<void>.delayed(retryBaseDelay * (1 << attempt));
