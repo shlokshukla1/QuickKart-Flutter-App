@@ -46,13 +46,21 @@ class CartController extends Notifier<Cart> {
 
   /// Removes one unit (and the line when it reaches zero).
   Future<void> decrement(String productId) async {
-    final line = state.lineFor(productId);
+    final current = state;
+    final line = current.lineFor(productId);
     if (line == null) return;
-    state = state.updateQuantity(productId, line.quantity - 1);
+    // FIX (QK-101): this only changed memory and never saved, so after a
+    // restart the old quantity came back.
+    final updated = current.updateQuantity(productId, line.quantity - 1);
+    await _storage.save(updated);
+    state = updated;
   }
 
   Future<void> remove(String productId) async {
-    state = state.removeLine(productId);
+    // FIX (QK-101): was never saved, so removed items came back.
+    final updated = state.removeLine(productId);
+    await _storage.save(updated);
+    state = updated;
   }
 
   Future<void> applyCoupon(Coupon coupon) async {
@@ -62,7 +70,10 @@ class CartController extends Notifier<Cart> {
   }
 
   Future<void> removeCoupon() async {
-    state = state.withoutCoupon();
+    // FIX (QK-101): was never saved, so a removed coupon came back.
+    final updated = state.withoutCoupon();
+    await _storage.save(updated);
+    state = updated;
   }
 
   /// Replaces the whole cart (e.g. after reconciliation).
