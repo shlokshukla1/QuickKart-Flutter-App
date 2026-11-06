@@ -15,9 +15,10 @@ class OrderApi {
 
   final ApiClient _client;
 
-  /// `POST /v1/orders`. See API_CONTRACT.md for the error codes.
-  Future<Order> placeOrder(Cart cart, CartPricing pricing) async {
-    final json = await _client.post('/v1/orders', body: {
+  /// The exact JSON body sent by [placeOrder]. Exposed so the checkout can
+  /// tie an idempotency key to this payload.
+  static Map<String, dynamic> buildBody(Cart cart, CartPricing pricing) {
+    return {
       'items': [
         for (final l in cart.lines)
           {
@@ -28,7 +29,26 @@ class OrderApi {
       ],
       'couponCode': cart.coupon?.code,
       'expectedTotalPaise': pricing.totalPaise,
-    }) as Map<String, dynamic>;
+    };
+  }
+
+  /// `POST /v1/orders`. See API_CONTRACT.md for the error codes.
+  ///
+  /// FIX (double orders): [idempotencyKey] is sent as the `Idempotency-Key`
+  /// header, so a retried / repeated request returns the first order instead
+  /// of creating a second one.
+  Future<Order> placeOrder(
+    Cart cart,
+    CartPricing pricing, {
+    String? idempotencyKey,
+  }) async {
+    final json = await _client.post(
+      '/v1/orders',
+      body: buildBody(cart, pricing),
+      headers: {
+        if (idempotencyKey != null) 'Idempotency-Key': idempotencyKey,
+      },
+    ) as Map<String, dynamic>;
     return Order.fromJson(json);
   }
 
