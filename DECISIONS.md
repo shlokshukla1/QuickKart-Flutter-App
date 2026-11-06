@@ -11,7 +11,7 @@
   - Not on every app start / connectivity change: it costs a batch request + coupon call, and the two points above already guarantee correctness.
 - **What does the user see for each kind of change?** A card at the top of the cart lists every change in a full sentence with the product name (names come from the cart *before* the change, so removed items are still named), plus a snackbar telling them to check and tap again:
   - price up: "🍌 Robusta Banana: price went up from ₹49 to ₹59." → **review required** (order not placed).
-  - price down: applied silently, both when the cart opens and at checkout (BUSINESS_RULES §5). It is only listed when it comes together with a change that needs review.
+  - price down: applied silently at checkout (BUSINESS_RULES §5); if found when opening the cart it is shown as "Good news, your cart got cheaper".
   - out of stock: "… is out of stock and was removed." → review.
   - quantity reduced: "… only 1 available, so your quantity went from 2 to 1." → review.
   - discontinued: "… is no longer sold and was removed." → review.

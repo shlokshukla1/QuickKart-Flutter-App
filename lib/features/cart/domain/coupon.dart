@@ -66,8 +66,8 @@ class Coupon {
       other.expiresAt == expiresAt;
 
   @override
-  int get hashCode => Object.hash(
-      code, type, value, maxDiscountPaise, minOrderPaise, expiresAt);
+  int get hashCode =>
+      Object.hash(code, type, value, maxDiscountPaise, minOrderPaise, expiresAt);
 }
 
 enum CouponType { flat, percent }

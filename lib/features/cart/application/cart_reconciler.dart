@@ -51,8 +51,7 @@ class CartReconciler {
     final missing = <String>{};
     final ids = [for (final l in cart.lines) l.productId];
     for (var i = 0; i < ids.length; i += _maxIdsPerRequest) {
-      final chunk =
-          ids.sublist(i, (i + _maxIdsPerRequest).clamp(0, ids.length));
+      final chunk = ids.sublist(i, (i + _maxIdsPerRequest).clamp(0, ids.length));
       final batch = await catalogApi.getProductsByIds(chunk);
       for (final p in batch.products) {
         serverProducts[p.id] = p;

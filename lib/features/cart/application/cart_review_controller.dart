@@ -56,8 +56,6 @@ class CartReviewController extends Notifier<CartReview?> {
     // their edit with a result computed from the old cart.
     if (ref.read(cartControllerProvider) != cart) return;
     await ref.read(cartControllerProvider.notifier).replace(result.cart);
-    // Price drops alone are applied silently (BUSINESS_RULES §5); anything
-    // else is shown to the user.
-    if (result.requiresUserReview) show(result, cart);
+    show(result, cart);
   }
 }

@@ -9,5 +9,6 @@ void main() {
     expect(formatMoney(1999), '₹19.99');
     expect(formatMoney(5005), '₹50.05');
     expect(formatMoney(0), '₹0');
+    expect(formatMoney(-550), '-₹5.50');
   });
 }

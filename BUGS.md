@@ -52,7 +52,7 @@
 - **Steps to reproduce:**
   1. Open Fruits & Veggies → Hybrid Tomato shows "₹19".
 - **Root cause:** `formatMoney` (`lib/core/utils/money.dart`) printed only `paise ~/ 100`. BUSINESS_RULES §1: "₹50, ₹49.99" – paise shown when there are any.
-- **Fix:** Print `₹rupees` when paise are 0, otherwise `₹rupees.pp` (2 digits).
+- **Fix:** Print `₹rupees` when paise are 0, otherwise `₹rupees.pp` (2 digits); negative amounts get a leading `-`.
 - **Test:** `test/bugs/money_format_test.dart` → `formatMoney shows paise only when there are any`
 - **Commits:** test `1c5d872` → fix `40179b8`
 
