@@ -8,25 +8,49 @@ import '../../catalog/presentation/widgets/product_card.dart';
 import '../../checkout/application/checkout_controller.dart';
 import '../../checkout/presentation/order_success_screen.dart';
 import '../application/cart_controller.dart';
+import '../application/cart_review_controller.dart';
 import '../data/coupon_api.dart';
 import '../domain/cart.dart';
 import '../domain/cart_pricing.dart';
+import 'cart_review_card.dart';
 
-class CartScreen extends ConsumerWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends ConsumerState<CartScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // F1: check the cart against the server as soon as it is opened (e.g. a
+    // cart built offline), so changes are visible before "Place order".
+    Future.microtask(
+        () => ref.read(cartReviewProvider.notifier).syncWithServer());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final cart = ref.watch(cartControllerProvider);
     final config = ref.watch(appConfigControllerProvider);
     final pricing = CartPricing.compute(cart, config);
 
     return Scaffold(
       appBar: AppBar(title: const Text('My cart')),
-      body: cart.isEmpty
-          ? const Center(
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          // F2 kill switch: shown live, also if the store closes while the
+          // user is on this screen.
+          if (!config.storeOpen)
+            StoreClosedBanner(message: config.storeClosedMessage),
+          const CartReviewCard(),
+          if (cart.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 120),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('🛒', style: TextStyle(fontSize: 48)),
                   SizedBox(height: 8),
@@ -34,36 +58,39 @@ class CartScreen extends ConsumerWidget {
                 ],
               ),
             )
-          : ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                if (pricing.amountForFreeDeliveryPaise > 0)
-                  Card(
-                    color: Colors.green.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        'Add ${formatMoney(pricing.amountForFreeDeliveryPaise)} '
-                        'more for FREE delivery 🛵',
-                      ),
-                    ),
-                  ),
-                Card(
-                  child: Column(
-                    children: [
-                      for (final line in cart.lines) _CartLineTile(line: line),
-                    ],
+          else ...[
+            if (pricing.amountForFreeDeliveryPaise > 0)
+              Card(
+                color: Colors.green.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Add ${formatMoney(pricing.amountForFreeDeliveryPaise)} '
+                    'more for FREE delivery 🛵',
                   ),
                 ),
-                const SizedBox(height: 8),
-                const _CouponSection(),
-                const SizedBox(height: 8),
-                _BillDetails(pricing: pricing),
-                const SizedBox(height: 80),
-              ],
+              ),
+            Card(
+              child: Column(
+                children: [
+                  for (final line in cart.lines) _CartLineTile(line: line),
+                ],
+              ),
             ),
-      bottomNavigationBar:
-          cart.isEmpty ? null : _PlaceOrderBar(totalPaise: pricing.totalPaise),
+            const SizedBox(height: 8),
+            const _CouponSection(),
+            const SizedBox(height: 8),
+            _BillDetails(pricing: pricing),
+            const SizedBox(height: 80),
+          ],
+        ],
+      ),
+      bottomNavigationBar: cart.isEmpty
+          ? null
+          : _PlaceOrderBar(
+              totalPaise: pricing.totalPaise,
+              storeOpen: config.storeOpen,
+            ),
     );
   }
 }
@@ -242,9 +269,10 @@ class _BillDetails extends StatelessWidget {
 }
 
 class _PlaceOrderBar extends ConsumerWidget {
-  const _PlaceOrderBar({required this.totalPaise});
+  const _PlaceOrderBar({required this.totalPaise, required this.storeOpen});
 
   final int totalPaise;
+  final bool storeOpen;
 
   Future<void> _placeOrder(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -256,19 +284,28 @@ class _PlaceOrderBar extends ConsumerWidget {
         navigator.pushReplacement(MaterialPageRoute<void>(
           builder: (_) => OrderSuccessScreen(order: order),
         ));
-      case CheckoutNeedsReview():
-        messenger.showSnackBar(const SnackBar(
-          content: Text('Your cart was updated. Please review it.'),
+      case CheckoutNeedsReview(:final reconciliation):
+        // The list of changes is shown in the card at the top of the cart.
+        messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Text(reconciliation.hasChanges
+              ? 'Your cart changed since you last saw it. Please check the '
+                  'changes at the top, then tap Place order again.'
+              : 'The delivery fee or total was updated. Please check the new '
+                  'total, then tap Place order again.'),
         ));
       case CheckoutFailure(:final message):
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Text(message),
+        ));
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final placing = ref
-        .watch(checkoutControllerProvider.select((s) => s.isPlacingOrder));
+    final placing =
+        ref.watch(checkoutControllerProvider.select((s) => s.isPlacingOrder));
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -279,14 +316,18 @@ class _PlaceOrderBar extends ConsumerWidget {
           ),
           // FIX (double tap): the button stays disabled while an order is
           // being placed (the controller also ignores a second call).
-          onPressed: placing ? null : () => _placeOrder(context, ref),
+          // F2 kill switch: no ordering while the store is closed.
+          onPressed:
+              placing || !storeOpen ? null : () => _placeOrder(context, ref),
           child: Row(
             children: [
               Text(formatMoney(totalPaise),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 16)),
               const Spacer(),
-              if (placing)
+              if (!storeOpen)
+                const Text('Store closed')
+              else if (placing)
                 const SizedBox(
                   width: 18,
                   height: 18,
