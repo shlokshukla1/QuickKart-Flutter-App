@@ -11,4 +11,8 @@ String formatMoney(int paise) {
 }
 
 /// Converts a rupee amount coming from the (legacy) API into paise.
-int rupeesToPaise(num rupees) => (rupees * 100).toInt();
+///
+/// FIX (paise truncation): `19.99 * 100` is `1998.9999…` in floating point
+/// and `.toInt()` cut it to 1998, so the app sent the wrong price and every
+/// order failed with PRICE_CHANGED. Rounding gives the exact 1999.
+int rupeesToPaise(num rupees) => (rupees * 100).round();
