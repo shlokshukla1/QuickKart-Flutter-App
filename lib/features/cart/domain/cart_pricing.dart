@@ -40,7 +40,9 @@ class CartPricing {
 
     final payable = subtotal - discount;
     final threshold = config.freeDeliveryThresholdPaise;
-    final deliveryFee = payable > threshold ? 0 : config.deliveryFeePaise;
+    // FIX (₹199 threshold): rule is "₹199 or more" is free. `>` charged ₹25
+    // at exactly ₹199 and the server (which uses `>=`) said TOTAL_MISMATCH.
+    final deliveryFee = payable >= threshold ? 0 : config.deliveryFeePaise;
 
     return CartPricing(
       subtotalPaise: subtotal,
