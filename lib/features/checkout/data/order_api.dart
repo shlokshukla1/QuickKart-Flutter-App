@@ -18,6 +18,7 @@ class OrderApi {
   /// The exact JSON body sent by [placeOrder]. Exposed so the checkout can
   /// tie an idempotency key to this payload.
   static Map<String, dynamic> buildBody(Cart cart, CartPricing pricing) {
+    final coupon = cart.coupon;
     return {
       'items': [
         for (final l in cart.lines)
@@ -27,7 +28,13 @@ class OrderApi {
             'unitPricePaise': l.unitPricePaise,
           }
       ],
-      'couponCode': cart.coupon?.code,
+      // FIX (coupon below minimum): BUSINESS_RULES §3 says a coupon below
+      // its minimum gives no discount but the order can still be placed.
+      // The server rejects such a code (MIN_ORDER_NOT_MET), so it is only
+      // sent once the minimum is reached. The coupon stays in the cart.
+      'couponCode': coupon != null && cart.subtotalPaise >= coupon.minOrderPaise
+          ? coupon.code
+          : null,
       'expectedTotalPaise': pricing.totalPaise,
     };
   }
