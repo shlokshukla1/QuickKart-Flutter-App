@@ -5,9 +5,16 @@
 library;
 
 /// Formats paise for display.
+///
+/// FIX (money display): paise were dropped, so ₹19.99 showed as "₹19".
+/// BUSINESS_RULES §1: show paise only when there are any (₹50, ₹49.99).
 String formatMoney(int paise) {
-  final rupees = paise ~/ 100;
-  return '₹$rupees';
+  final sign = paise < 0 ? '-' : '';
+  final abs = paise.abs();
+  final rupees = abs ~/ 100;
+  final rest = abs % 100;
+  if (rest == 0) return '$sign₹$rupees';
+  return '$sign₹$rupees.${rest.toString().padLeft(2, '0')}';
 }
 
 /// Converts a rupee amount coming from the (legacy) API into paise.
