@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,26 +20,32 @@ class CategoryScreen extends ConsumerStatefulWidget {
 }
 
 class _CategoryScreenState extends ConsumerState<CategoryScreen> {
-  late int _freeDeliveryThresholdPaise;
+  // FIX (listener leak): the subscription was never cancelled, so every
+  // visit leaked a listener and a config publish after leaving the screen
+  // called setState() on a disposed widget. It is now kept and cancelled.
+  StreamSubscription<int>? _configSub;
 
   @override
   void initState() {
     super.initState();
-    _freeDeliveryThresholdPaise =
-        ref.read(appConfigControllerProvider).freeDeliveryThresholdPaise;
-
     // Marketing changes the free-delivery threshold during sales; keep the
     // strip on this screen up to date without a restart.
-    ref.read(configRepositoryProvider).remoteUpdates.listen((_) async {
-      final config = await ref.read(configRepositoryProvider).load();
-      setState(() {
-        _freeDeliveryThresholdPaise = config.freeDeliveryThresholdPaise;
-      });
-    });
+    // FIX: refresh the app-wide config instead of a private copy, so this
+    // strip and the cart's delivery fee always use the same threshold.
+    _configSub = ref.read(configRepositoryProvider).remoteUpdates.listen(
+        (_) => ref.read(appConfigControllerProvider.notifier).refresh());
+  }
+
+  @override
+  void dispose() {
+    _configSub?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final freeDeliveryThresholdPaise = ref.watch(
+        appConfigControllerProvider.select((c) => c.freeDeliveryThresholdPaise));
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.category.emoji} ${widget.category.name}'),
@@ -53,7 +61,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
                 '🛵 Free delivery on orders of '
-                '${formatMoney(_freeDeliveryThresholdPaise)} or more',
+                '${formatMoney(freeDeliveryThresholdPaise)} or more',
                 style: TextStyle(color: Colors.green.shade900),
               ),
             ),
