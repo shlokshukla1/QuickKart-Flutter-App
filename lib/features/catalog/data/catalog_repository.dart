@@ -31,7 +31,20 @@ class CatalogRepository {
   final CatalogApi _api;
   final CatalogCache _cache;
 
-  Future<List<Category>> getCategories() => _api.getCategories();
+  /// Network-first; offline falls back to the categories seen last time
+  /// (BUSINESS_RULES §6: browse what you have already seen).
+  Future<List<Category>> getCategories() async {
+    try {
+      final categories = await _api.getCategories();
+      await _cache.writeCategories(categories);
+      return categories;
+    } on ApiException catch (e) {
+      if (!e.isTransient) rethrow;
+      final cached = await _cache.readCategories();
+      if (cached == null) rethrow;
+      return cached;
+    }
+  }
 
   /// Returns one page of products for [categoryId]
   /// ([kAllProductsCategory] for everything).

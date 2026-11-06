@@ -39,6 +39,24 @@ class CatalogCache {
     );
   }
 
+  static const _categoriesKey = '${_prefix}categories';
+
+  /// Categories seen last time, so the home screen works offline too.
+  Future<List<Category>?> readCategories() async {
+    final raw = await _store.getString(_categoriesKey);
+    if (raw == null) return null;
+    try {
+      return (jsonDecode(raw) as List)
+          .map((e) => Category.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return null; // corrupt entry = cache miss
+    }
+  }
+
+  Future<void> writeCategories(List<Category> categories) => _store.setString(
+      _categoriesKey, jsonEncode([for (final c in categories) c.toJson()]));
+
   Future<void> clear() async {
     for (final key in await _store.keys()) {
       if (key.startsWith(_prefix)) await _store.remove(key);

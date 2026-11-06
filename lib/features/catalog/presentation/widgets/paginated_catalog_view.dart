@@ -12,10 +12,19 @@ class PaginatedCatalogView extends ConsumerStatefulWidget {
     super.key,
     required this.categoryId,
     this.headerSlivers = const [],
+    this.footerSlivers = const [],
+    this.onRefresh,
   });
 
   final String categoryId;
   final List<Widget> headerSlivers;
+
+  /// Rendered after the grid (e.g. home sections configured after
+  /// `all_products`).
+  final List<Widget> footerSlivers;
+
+  /// Extra work for pull-to-refresh (e.g. reloading home sections).
+  final Future<void> Function()? onRefresh;
 
   @override
   ConsumerState<PaginatedCatalogView> createState() =>
@@ -53,7 +62,12 @@ class _PaginatedCatalogViewState extends ConsumerState<PaginatedCatalogView> {
     final controller = ref.read(provider.notifier);
 
     return RefreshIndicator(
-      onRefresh: controller.refresh,
+      onRefresh: () async {
+        await Future.wait([
+          controller.refresh(),
+          if (widget.onRefresh != null) widget.onRefresh!(),
+        ]);
+      },
       child: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -73,8 +87,7 @@ class _PaginatedCatalogViewState extends ConsumerState<PaginatedCatalogView> {
                     Icon(Icons.cloud_off, size: 18),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                          'You are offline. Showing saved products.'),
+                      child: Text('You are offline. Showing saved products.'),
                     ),
                   ],
                 ),
@@ -120,8 +133,7 @@ class _PaginatedCatalogViewState extends ConsumerState<PaginatedCatalogView> {
                   childAspectRatio: 0.62,
                 ),
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      ProductCard(product: state.items[index]),
+                  (context, index) => ProductCard(product: state.items[index]),
                   childCount: state.items.length,
                 ),
               ),
@@ -148,6 +160,7 @@ class _PaginatedCatalogViewState extends ConsumerState<PaginatedCatalogView> {
               ),
             ),
           ],
+          ...widget.footerSlivers,
         ],
       ),
     );
