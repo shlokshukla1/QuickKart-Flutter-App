@@ -25,11 +25,17 @@ final searchControllerProvider =
 );
 
 class ProductSearchController extends Notifier<SearchState> {
+  // FIX (search race): one request per keystroke; responses can arrive out
+  // of order. Only the response of the latest request may update the
+  // screen, otherwise "mi" results could overwrite "milk" results.
+  int _latestRequest = 0;
+
   @override
   SearchState build() => const SearchState();
 
   /// Called on every keystroke of the search field.
   Future<void> search(String query) async {
+    final request = ++_latestRequest;
     if (query.trim().isEmpty) {
       state = const SearchState();
       return;
@@ -38,11 +44,16 @@ class ProductSearchController extends Notifier<SearchState> {
     try {
       final results =
           await ref.read(catalogRepositoryProvider).search(query.trim());
+      if (request != _latestRequest) return; // a newer search is running
       state = SearchState(query: query, results: results);
     } on ApiException catch (e) {
+      if (request != _latestRequest) return;
       state = SearchState(query: query, errorMessage: e.message);
     }
   }
 
-  void clear() => state = const SearchState();
+  void clear() {
+    _latestRequest++; // ignore any search still in flight
+    state = const SearchState();
+  }
 }
