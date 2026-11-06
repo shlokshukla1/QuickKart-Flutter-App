@@ -57,14 +57,31 @@ final checkoutControllerProvider =
 const String _kPendingOrderKey = 'checkout.pending_order.v1';
 
 class CheckoutController extends Notifier<CheckoutState> {
+  // FIX (double tap): the order currently being placed. A second tap gets
+  // the same Future instead of sending a second POST /v1/orders.
+  Future<CheckoutResult>? _inFlight;
+
   @override
   CheckoutState build() => const CheckoutState();
 
-  Future<CheckoutResult> placeOrder() async {
+  Future<CheckoutResult> placeOrder() {
+    final running = _inFlight;
+    if (running != null) return running;
+    final future = _run();
+    _inFlight = future;
+    return future;
+  }
+
+  Future<CheckoutResult> _run() async {
     state = const CheckoutState(isPlacingOrder: true);
-    final result = await _placeOrder(retryOnTimeout: true);
-    state = CheckoutState(lastResult: result);
-    return result;
+    try {
+      final result = await _placeOrder(retryOnTimeout: true);
+      state = CheckoutState(lastResult: result);
+      return result;
+    } finally {
+      _inFlight = null;
+      if (state.isPlacingOrder) state = const CheckoutState();
+    }
   }
 
   Future<CheckoutResult> _placeOrder({required bool retryOnTimeout}) async {
