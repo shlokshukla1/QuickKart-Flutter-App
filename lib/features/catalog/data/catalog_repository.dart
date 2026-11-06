@@ -43,7 +43,10 @@ class CatalogRepository {
     String? cursor,
     int limit = 10,
   }) async {
-    final cacheKey = 'page.${cursor ?? 'first'}';
+    // FIX (offline wrong category): the key had no category, so every
+    // category's first page overwrote the same entry and offline "Dairy"
+    // could show "All products" or another category.
+    final cacheKey = 'page.$categoryId.${cursor ?? 'first'}';
     try {
       final page = await _api.getProducts(
         categoryId: categoryId == kAllProductsCategory ? null : categoryId,
