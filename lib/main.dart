@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +9,7 @@ import 'core/providers.dart';
 import 'core/storage/key_value_store.dart';
 import 'features/app_config/data/config_repository.dart';
 import 'features/app_config/presentation/app_config_controller.dart';
+import 'features/app_config/presentation/update_gate.dart';
 import 'features/cart/application/cart_controller.dart';
 import 'features/cart/data/cart_storage.dart';
 import 'mock_server/mock_server.dart';
@@ -31,12 +34,28 @@ Future<void> main() async {
     ],
   );
 
-  // Restore the cart and load remote config before the first frame.
+  // Restore the cart and config before the first frame.
   final cart = await container.read(cartStorageProvider).load();
   container.read(cartControllerProvider.notifier).hydrate(cart);
 
-  final config = await container.read(configRepositoryProvider).load();
-  container.read(appConfigControllerProvider.notifier).hydrate(config);
+  // F2: start from the last known good config (instant, works offline),
+  // then fetch the latest in the background. The first frame never waits
+  // for a slow network; a force update still applies within seconds.
+  final configRepo = container.read(configRepositoryProvider);
+  final configController = container.read(appConfigControllerProvider.notifier);
+  final cached = await configRepo.loadCached();
+  if (cached != null) {
+    configController.hydrate(cached);
+    unawaited(configController.refresh());
+  } else {
+    // First launch: nothing cached yet, so wait for the fetch (load() never
+    // throws and falls back to defaults offline).
+    configController.hydrate(await configRepo.load());
+  }
+
+  container
+      .read(dismissedUpdateVersionProvider.notifier)
+      .hydrate(await store.getString(kDismissedUpdateVersionKey));
 
   runApp(
     UncontrolledProviderScope(
