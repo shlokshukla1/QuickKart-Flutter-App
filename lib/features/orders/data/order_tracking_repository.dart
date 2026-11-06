@@ -38,6 +38,9 @@ class OrderTrackingRepository {
   }
 }
 
-final ordersProvider = FutureProvider<List<Order>>(
+// FIX (QK-102, orders): a plain FutureProvider fetched once and kept that
+// list for the whole session, so a just-placed order never showed up.
+// autoDispose refetches every time "My orders" is opened.
+final ordersProvider = FutureProvider.autoDispose<List<Order>>(
   (ref) => ref.watch(orderTrackingRepositoryProvider).getOrders(),
 );

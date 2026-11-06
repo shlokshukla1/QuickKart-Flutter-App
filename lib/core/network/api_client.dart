@@ -7,26 +7,24 @@ import 'transport.dart';
 /// JSON API client used by every remote data source.
 ///
 /// * GET requests are retried with exponential backoff.
-/// * Saves bandwidth on flaky campus / mobile networks.
 /// * POST requests are never retried automatically.
+///
+/// FIX (QK-102): there used to be a 10-minute in-memory GET response cache
+/// that was checked *before* the network. Pull-to-refresh, "My orders" and
+/// remote config all got stale data until the app was restarted. It was
+/// removed; offline browsing is handled by `CatalogCache` instead.
 class ApiClient {
   ApiClient(
     this._transport, {
     this.maxRetries = 2,
     this.timeout = const Duration(seconds: 8),
     this.retryBaseDelay = const Duration(milliseconds: 200),
-    this.responseCacheTtl = const Duration(minutes: 10),
-    DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  });
 
   final Transport _transport;
   final int maxRetries;
   final Duration timeout;
   final Duration retryBaseDelay;
-  final Duration responseCacheTtl;
-  final DateTime Function() _clock;
-
-  final Map<String, _CachedResponse> _responseCache = {};
 
   Future<dynamic> get(String path, {Map<String, String> query = const {}}) {
     return _getWithRetry(
@@ -50,17 +48,10 @@ class ApiClient {
   }
 
   Future<dynamic> _getWithRetry(TransportRequest request) async {
-    final cached = _responseCache[request.cacheKey];
-    if (cached != null &&
-        _clock().difference(cached.storedAt) < responseCacheTtl) {
-      return jsonDecode(cached.body);
-    }
-
     ApiException? lastError;
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        final result = await _send(request);
-        return result;
+        return await _send(request);
       } on ApiException catch (e) {
         lastError = e;
         if (attempt < maxRetries) {
@@ -85,13 +76,7 @@ class ApiClient {
 
     final decoded = _decode(response.body);
 
-    if (response.isSuccess) {
-      if (request.method == 'GET') {
-        _responseCache[request.cacheKey] =
-            _CachedResponse(response.body, _clock());
-      }
-      return decoded;
-    }
+    if (response.isSuccess) return decoded;
 
     final code = decoded is Map ? decoded['error'] as String? : null;
     final message = decoded is Map
@@ -116,11 +101,4 @@ class ApiClient {
       return null;
     }
   }
-}
-
-class _CachedResponse {
-  _CachedResponse(this.body, this.storedAt);
-
-  final String body;
-  final DateTime storedAt;
 }
