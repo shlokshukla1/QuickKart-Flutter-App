@@ -53,10 +53,9 @@ class CartReviewCard extends ConsumerWidget {
     if (review == null || review.changes.isEmpty) {
       return const SizedBox.shrink();
     }
-    final important = review.requiresUserReview;
     final theme = Theme.of(context);
     return Card(
-      color: important ? Colors.orange.shade50 : Colors.green.shade50,
+      color: Colors.orange.shade50,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -64,14 +63,11 @@ class CartReviewCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(important ? Icons.info_outline : Icons.savings_outlined,
-                    color: important ? Colors.orange.shade800 : Colors.green),
+                Icon(Icons.info_outline, color: Colors.orange.shade800),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    important
-                        ? 'Your cart was updated. Please check before ordering:'
-                        : 'Good news, your cart got cheaper:',
+                    'Your cart was updated. Please check before ordering:',
                     style: theme.textTheme.titleSmall,
                   ),
                 ),

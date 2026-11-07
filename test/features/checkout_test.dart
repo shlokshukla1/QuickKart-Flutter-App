@@ -154,6 +154,16 @@ void main() {
         h.read(cartReviewProvider)!.changes.single, isA<ProductUnavailable>());
   });
 
+  test('opening the cart applies a price drop silently', () async {
+    await cart().add(serverProduct(h, 'fruits-01'));
+    h.server.setPrice('fruits-01', 3900);
+
+    await h.read(cartReviewProvider.notifier).syncWithServer();
+
+    expect(h.read(cartControllerProvider).lines.single.unitPricePaise, 3900);
+    expect(h.read(cartReviewProvider), isNull);
+  });
+
   test('opening the cart offline keeps it untouched', () async {
     await cart().add(serverProduct(h, 'fruits-01'));
     final before = h.read(cartControllerProvider);
